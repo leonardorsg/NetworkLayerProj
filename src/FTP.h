@@ -10,7 +10,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <netdb.h>
-#include "aux.h"
+#include "utils.h"
 
 //CHANGE THIS AFTER FINDING OUT THE CORRECT SERVER PORT
 #define SERVER_PORT 21
