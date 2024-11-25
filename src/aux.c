@@ -59,7 +59,13 @@ int get_input(struct TCP_input *input, char *argv){
     char *last_slash = strrchr(cursor, '/');
     if(last_slash == NULL){
         strcpy(input->path, "");
-        strcpy(input->filename, "");
+        size_t file_len = strlen(cursor);
+        if(file_len > MAX_SIZE){
+            printf("-> File name is too long\n");
+            return -1;
+        }
+
+        strcpy(input->filename, cursor);
     } else {
         size_t path_len = last_slash - cursor;
         if(path_len > MAX_SIZE){

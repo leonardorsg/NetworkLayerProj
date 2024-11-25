@@ -14,9 +14,6 @@
 
 #include <string.h>
 
-#define SERVER_PORT 6000
-#define SERVER_ADDR "192.168.28.96"
-
 int main(int argc, char **argv) {
 
     if (argc != 2) {
@@ -43,6 +40,14 @@ int main(int argc, char **argv) {
     }
 
     printf("IP: %s\n", ip);
+
+    //Creation of socket to connect to server
+    int socketfd = connect_to_server(ip);
+    if(socketfd < 0){
+        printf("Error connecting to server\n");
+        return -1;
+    }
+    
 
     return 0;
 }

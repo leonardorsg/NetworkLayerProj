@@ -34,5 +34,12 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 clean:
 	rm -rf $(BUILD_DIR)
 
+# Run the program with a predefined argument
+run: $(TARGET)
+	$(TARGET) ftp://rcom:rcom@netlab1.fe.up.pt/pipe.txt
+
+runa: $(TARGET)
+	$(TARGET) $(ARGS)
+
 # Phony targets
 .PHONY: all clean
