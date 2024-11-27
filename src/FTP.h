@@ -29,3 +29,9 @@ int login_on_server(int control_socket, const char *username, const char *passwo
 int change_working_directory(int control_socket, const char *path);
 
 int send_pasv_command(int control_socket, char *pasv_ip, int *port);
+
+int send_retr_command(int control_socket, const char *filename);
+
+int download_file(int data_socket, const char *filename);
+
+int close_socket(int socket);

@@ -166,3 +166,62 @@ int send_pasv_command(int control_socket, char *pasv_ip, int *port) {
     return 0;
 }
 
+int send_retr_command(int control_socket, const char *filename){
+    char response[MAX_SIZE];
+    if (send_command(control_socket, "RETR", filename) != 0) {
+        printf("Failed to send RETR command.\n");
+        return -1;
+    }
+
+    if (read_server_response(control_socket, response, sizeof(response)) < 0)
+        return -1;
+
+    return 0;
+
+}
+
+int download_file(int data_socket, const char *filename){
+    FILE *file = fopen(filename, "w");
+    if (file == NULL) {
+        perror("fopen()");
+        return -1;
+    }
+
+    char buffer[MAX_SIZE];
+    int bytes_read;
+    while ((bytes_read = read(data_socket,buffer, sizeof(buffer))) > 0) {
+        if ((bytes_read = fwrite(buffer, 1, bytes_read, file)) < 0) {
+            perror("fwrite()");
+            return -1;
+        }
+    }
+
+    if (bytes_read < 0) {
+        perror("read()");
+        return -1;
+    }
+
+    printf("File downloaded successfully.\n");
+    if(fclose(file) != 0){
+        perror("fclose()");
+        return -1;
+    }
+
+    return 0;
+}
+
+int close_socket(int socket){
+    if (send_command(socket, "QUIT", NULL) != 0) {
+        printf("Failed to send QUIT command.\n");
+        return -1;
+    }
+
+    char response[MAX_SIZE];
+
+    //Succesfull goodbye response is 221
+    if (read_server_response(socket, response, sizeof(response)) != 221)
+        return -1;
+    return close(socket);
+
+}
+

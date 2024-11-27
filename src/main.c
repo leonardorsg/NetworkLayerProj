@@ -99,6 +99,13 @@ int main(int argc, char **argv) {
 
     printf("Data connection info: IP=%s, Port=%d\n", pasv_ip, port);
 
+
+    if(send_retr_command(control_socket, input.filename) < 0){
+        printf("Failed to send RETR command.\n");
+        close(control_socket);
+        return -1;
+    }
+
     int data_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (data_socket < 0) {
         perror("socket");
@@ -121,10 +128,23 @@ int main(int argc, char **argv) {
 
     printf("Data connection established successfully.\n");
 
-    close(data_socket);
+    if (download_file(data_socket, input.filename) < 0) {
+        printf("Failed to download file.\n");
+        close(data_socket);
+        close(control_socket);
+        return -1;
+    }
 
-    close(control_socket);
+    char response_download[MAX_RESPONSE_SIZE];
+    int response_code_download = read_server_response(control_socket, response_download, sizeof(response_download));
+    if (response_code_download < 0) {
+        printf("Failed to download.\n");
+        close(control_socket);
+        return -1;
+    } 
 
+    close_socket(control_socket);
+    close_socket(data_socket);
     return 0;
 }
 

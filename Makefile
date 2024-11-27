@@ -36,7 +36,8 @@ clean:
 
 # Run the program with a predefined argument
 run: $(TARGET)
-	$(TARGET) ftp://rcom:rcom@netlab1.fe.up.pt/pipe.txt
+	$(TARGET) ftp://ftp.up.pt/pub/gnu/emacs/elisp-manual-21-2.8.tar.gz
+
 
 runa: $(TARGET)
 	$(TARGET) $(ARGS)
