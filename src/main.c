@@ -20,7 +20,7 @@
 // 2. get IP address from host✅
 // 3. Create and connect a new socket to the server✅
 // 4. Receive confirmation from server that socket is connected✅
-// 5. Login on server
+// 5. Login on server✅
 // 6. Change working directory on server to the file_path that was passed by input
 // 7. Send PASV command to get IP address and port for data socket
 // 8. Send RETR command to begin file transfer through data socket
@@ -35,7 +35,7 @@ int main(int argc, char **argv) {
     }
 
     struct TCP_input input;
-    if(get_input(&input, argv[1]) != 0){
+    if (get_input(&input, argv[1]) != 0){
         printf("Error getting input\n");
         return -1;
     }
@@ -56,14 +56,21 @@ int main(int argc, char **argv) {
 
     //Creation of socket to connect to server
     int socketfd = connect_to_server(ip);
-    if(socketfd < 0){
+    if (socketfd < 0){
         printf("Error connecting to server\n");
         return -1;
     }
 
-    // Read server response after connection
-    if (read_server_response(socketfd) != 0) {
+    char response[MAX_RESPONSE_SIZE];
+    int response_code = read_server_response(socketfd, response, sizeof(response));
+    if (response_code < 0) {
         printf("Failed to establish a proper connection with the server.\n");
+        close(socketfd);
+        return -1;
+    } 
+    
+    if (login_on_server(socketfd, input.user, input.password) != 0) {
+        printf("Error logging in to server.\n");
         close(socketfd);
         return -1;
     }

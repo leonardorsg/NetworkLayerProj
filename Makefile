@@ -15,7 +15,7 @@ SRCS = $(wildcard $(SRC_DIR)/*.c)
 OBJS = $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(SRCS))
 
 # Target executable
-TARGET = $(BUILD_DIR)/program
+TARGET = $(BUILD_DIR)/download
 
 # Default rule: build the executable
 all: $(TARGET)

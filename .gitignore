@@ -1,1 +1,6 @@
+
 /build/
+
+# Ignore temp files
+*.o
+*.out

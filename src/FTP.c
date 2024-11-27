@@ -26,24 +26,73 @@ int connect_to_server(char* server_address){
     return sockfd;
 }
 
-int read_server_response(int sockfd) {
-    char response[RESPONSE_BUFFER_SIZE];
-    memset(response, 0, RESPONSE_BUFFER_SIZE);
 
-    ssize_t bytes_read = read(sockfd, response, RESPONSE_BUFFER_SIZE - 1);
+int read_server_response(int socket_fd, char *buffer, size_t size) {
+    ssize_t bytes_read = read(socket_fd, buffer, size - 1);
     if (bytes_read < 0) {
         perror("read()");
         return -1;
     }
 
-    printf("Server Response:\n%s\n", response);
+    buffer[bytes_read] = '\0'; 
+    printf("Server response: %s\n", buffer);
 
-    // Check if the response starts with "220" (connection success code)
-    if (strncmp(response, "220", 3) == 0) {
-        printf("Connection established successfully.\n");
+    return atoi(buffer); 
+}
+
+
+int send_command(int socket_fd, const char *command, const char *argument) {
+    char buffer[MAX_RESPONSE_SIZE];
+
+    if (argument != NULL) 
+        snprintf(buffer, sizeof(buffer), "%s %s\r\n", command, argument);
+    else 
+        snprintf(buffer, sizeof(buffer), "%s\r\n", command);
+
+    if (write(socket_fd, buffer, strlen(buffer)) < 0) {
+        perror("write()");
+        return -1;
+    }
+
+    return 0;
+}
+
+int login_on_server(int socket_fd, const char *username, const char *password) {
+    char response[MAX_RESPONSE_SIZE];
+
+    // Send USER command
+    if (send_command(socket_fd, "USER", username) < 0) 
+        return -1;
+
+    // Read server response
+    if (read_server_response(socket_fd, response, sizeof(response)) < 0)
+        return -1;
+    
+    // Check response code
+    int code = atoi(response);
+    if (code == 230) {
+        printf("Login successful (no password needed).\n");
+        return 0;
+    } else if (code != 331) {
+        printf("Unexpected response after USER: %s\n", response);
+        return -1;
+    }
+
+    // Send PASS command, 331 means password is required
+    if (send_command(socket_fd, "PASS", password) < 0) 
+        return -1;
+
+    // Read server response
+    if (read_server_response(socket_fd, response, sizeof(response)) < 0) 
+        return -1;
+
+    // Check response code
+    code = atoi(response);
+    if (code == 230) {
+        printf("Login successful.\n");
         return 0;
     } else {
-        fprintf(stderr, "Connection failed. Server response:\n%s\n", response);
+        printf("Login failed: %s\n", response);
         return -1;
     }
 }

@@ -14,10 +14,10 @@ int get_input(struct TCP_input *input, char *argv){
     // Get User and password
     char *at = strchr(cursor, '@');
 
-    if(at == NULL){
+    if (at == NULL){
         strcpy(input->user, "anonymous");
         strcpy(input->password, "");
-    } else{
+    } else {
         char *colon = strchr(cursor, ':');
         if(colon != NULL && colon < at){
             size_t user_len = colon - cursor;
