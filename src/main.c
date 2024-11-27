@@ -21,11 +21,18 @@
 // 3. Create and connect a new socket to the server✅
 // 4. Receive confirmation from server that socket is connected✅
 // 5. Login on server✅
-// 6. Change working directory on server to the file_path that was passed by input
+// 6. Change working directory on server to the file_path that was passed by input✅
 // 7. Send PASV command to get IP address and port for data socket
 // 8. Send RETR command to begin file transfer through data socket
 // 9. Download file
-// 10. Disconnect from socket  
+// 10. Disconnect from socket  ✅
+
+// nslookup netlab1.fe.up.pt
+// Server:         10.255.255.254
+// Address:        10.255.255.254#53
+
+// Name:   netlab1.fe.up.pt
+// Address: 192.168.109.136
 
 int main(int argc, char **argv) {
 
@@ -68,12 +75,22 @@ int main(int argc, char **argv) {
         close(socketfd);
         return -1;
     } 
-    
+
     if (login_on_server(socketfd, input.user, input.password) != 0) {
         printf("Error logging in to server.\n");
         close(socketfd);
         return -1;
     }
+
+    if (send_command(socketfd, "CWD", input.path) != 0) {
+        printf("Error changing working directory.\n");
+        close(socketfd);
+        return -1;
+    } else 
+        printf("Changed working directory to %s\n", input.path);
+    
+
+    close(socketfd);
 
     return 0;
 }
