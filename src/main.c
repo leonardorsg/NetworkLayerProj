@@ -11,8 +11,21 @@
 #include <arpa/inet.h>
 #include <stdlib.h>
 #include <unistd.h>
-
 #include <string.h>
+
+
+//   RFC 959 Protocol
+
+// 1. Receive from input "ftp://[<user>:<password>@]<host>/<url-path>"✅
+// 2. get IP address from host✅
+// 3. Create and connect a new socket to the server✅
+// 4. Receive confirmation from server that socket is connected✅
+// 5. Login on server
+// 6. Change working directory on server to the file_path that was passed by input
+// 7. Send PASV command to get IP address and port for data socket
+// 8. Send RETR command to begin file transfer through data socket
+// 9. Download file
+// 10. Disconnect from socket  
 
 int main(int argc, char **argv) {
 
@@ -47,7 +60,13 @@ int main(int argc, char **argv) {
         printf("Error connecting to server\n");
         return -1;
     }
-    
+
+    // Read server response after connection
+    if (read_server_response(socketfd) != 0) {
+        printf("Failed to establish a proper connection with the server.\n");
+        close(socketfd);
+        return -1;
+    }
 
     return 0;
 }

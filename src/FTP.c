@@ -21,7 +21,29 @@ int connect_to_server(char* server_address){
                 sizeof(server_addr)) < 0) {
         perror("connect()");
         exit(-1);
-    }
+    }    
 
     return sockfd;
+}
+
+int read_server_response(int sockfd) {
+    char response[RESPONSE_BUFFER_SIZE];
+    memset(response, 0, RESPONSE_BUFFER_SIZE);
+
+    ssize_t bytes_read = read(sockfd, response, RESPONSE_BUFFER_SIZE - 1);
+    if (bytes_read < 0) {
+        perror("read()");
+        return -1;
+    }
+
+    printf("Server Response:\n%s\n", response);
+
+    // Check if the response starts with "220" (connection success code)
+    if (strncmp(response, "220", 3) == 0) {
+        printf("Connection established successfully.\n");
+        return 0;
+    } else {
+        fprintf(stderr, "Connection failed. Server response:\n%s\n", response);
+        return -1;
+    }
 }

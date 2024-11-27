@@ -14,5 +14,9 @@
 
 //CHANGE THIS AFTER FINDING OUT THE CORRECT SERVER PORT
 #define SERVER_PORT 21
+#define RESPONSE_BUFFER_SIZE 1024
+
 
 int connect_to_server(char* server_address);
+
+int read_server_response(int sockfd);
