@@ -20,8 +20,12 @@
 
 int connect_to_server(char* server_address);
 
-int read_server_response(int socket_fd, char *buffer, size_t size);
+int read_server_response(int control_socket, char *buffer, size_t size);
 
-int send_command(int socket_fd, const char *command, const char *argument);
+int send_command(int control_socket, const char *command, const char *argument);
 
-int login_on_server(int socket_fd, const char *username, const char *password);
+int login_on_server(int control_socket, const char *username, const char *password);
+
+int change_working_directory(int control_socket, const char *path);
+
+int send_pasv_command(int control_socket, char *pasv_ip, int *port);

@@ -1,7 +1,7 @@
 #include "FTP.h"
 
 int connect_to_server(char* server_address){
-    int sockfd;
+    int control_socket;
     struct sockaddr_in server_addr;
 
     /*server address handling*/
@@ -11,24 +11,24 @@ int connect_to_server(char* server_address){
     server_addr.sin_port = htons(SERVER_PORT);        /*server TCP port must be network byte ordered */
 
     /*open a TCP socket*/
-    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    if ((control_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         perror("socket()");
         exit(-1);
     }
     /*connect to the server*/
-    if (connect(sockfd,
+    if (connect(control_socket,
                 (struct sockaddr *) &server_addr,
                 sizeof(server_addr)) < 0) {
         perror("connect()");
         exit(-1);
     }    
 
-    return sockfd;
+    return control_socket;
 }
 
 
-int read_server_response(int socket_fd, char *buffer, size_t size) {
-    ssize_t bytes_read = read(socket_fd, buffer, size - 1);
+int read_server_response(int control_socket, char *buffer, size_t size) {
+    ssize_t bytes_read = read(control_socket, buffer, size - 1);
     if (bytes_read < 0) {
         perror("read()");
         return -1;
@@ -41,7 +41,7 @@ int read_server_response(int socket_fd, char *buffer, size_t size) {
 }
 
 
-int send_command(int socket_fd, const char *command, const char *argument) {
+int send_command(int control_socket, const char *command, const char *argument) {
     char buffer[MAX_RESPONSE_SIZE];
 
     if (argument != NULL) 
@@ -49,7 +49,7 @@ int send_command(int socket_fd, const char *command, const char *argument) {
     else 
         snprintf(buffer, sizeof(buffer), "%s\r\n", command);
 
-    if (write(socket_fd, buffer, strlen(buffer)) < 0) {
+    if (write(control_socket, buffer, strlen(buffer)) < 0) {
         perror("write()");
         return -1;
     }
@@ -57,15 +57,15 @@ int send_command(int socket_fd, const char *command, const char *argument) {
     return 0;
 }
 
-int login_on_server(int socket_fd, const char *username, const char *password) {
+int login_on_server(int control_socket, const char *username, const char *password) {
     char response[MAX_RESPONSE_SIZE];
 
     // Send USER command
-    if (send_command(socket_fd, "USER", username) < 0) 
+    if (send_command(control_socket, "USER", username) < 0) 
         return -1;
 
     // Read server response
-    if (read_server_response(socket_fd, response, sizeof(response)) < 0)
+    if (read_server_response(control_socket, response, sizeof(response)) < 0)
         return -1;
     
     // Check response code
@@ -79,11 +79,11 @@ int login_on_server(int socket_fd, const char *username, const char *password) {
     }
 
     // Send PASS command, 331 means password is required
-    if (send_command(socket_fd, "PASS", password) < 0) 
+    if (send_command(control_socket, "PASS", password) < 0) 
         return -1;
 
     // Read server response
-    if (read_server_response(socket_fd, response, sizeof(response)) < 0) 
+    if (read_server_response(control_socket, response, sizeof(response)) < 0) 
         return -1;
 
     // Check response code
@@ -96,3 +96,73 @@ int login_on_server(int socket_fd, const char *username, const char *password) {
         return -1;
     }
 }
+
+int change_working_directory(int control_socket, const char *path) {
+    if (send_command(control_socket, "CWD", path) != 0) {
+        printf("Error sending CWD command.\n");
+        close(control_socket);
+        return -1;
+    } 
+            
+    char response[MAX_RESPONSE_SIZE];
+    if (read_server_response(control_socket, response, sizeof(response)) < 0) {
+        printf("Failed to read server response for CWD.\n");
+        close(control_socket);
+        return -1;
+
+    } else if (atoi(response) != 250) { 
+        printf("Unexpected response to CWD: %s\n", response);
+        close(control_socket);
+        return -1;
+    }
+
+    printf("Working directory changed successfully.\n");
+    return 0;
+}
+
+int send_pasv_command(int control_socket, char *pasv_ip, int *port) {
+    char response[MAX_RESPONSE_SIZE];
+
+    if (send_command(control_socket, "PASV", NULL) != 0) {
+        printf("Failed to send PASV command.\n");
+        return -1;
+    }
+
+    if (read_server_response(control_socket, response, sizeof(response)) < 0)
+        return -1;
+    
+    // 227 is the expected response code for PASV
+    if (strncmp(response, "227", 3) != 0) {
+        printf("Unexpected response to PASV command: %s\n", response);
+        return -1;
+    }
+
+    // Parse the IP and port from the response
+    char *start = strchr(response, '(');
+    char *end = strchr(response, ')');
+    if (start == NULL || end == NULL || start >= end) {
+        printf("Failed to parse PASV response.\n");
+        return -1;
+    }
+
+    char pasv_data[MAX_RESPONSE_SIZE];
+    strncpy(pasv_data, start + 1, end - start - 1);
+    pasv_data[end - start - 1] = '\0';
+
+    int h1, h2, h3, h4, p1, p2;
+    if (sscanf(pasv_data, "%d,%d,%d,%d,%d,%d", &h1, &h2, &h3, &h4, &p1, &p2) != 6) {
+        printf("Failed to extract PASV data.\n");
+        return -1;
+    }
+
+    // Build the IP address
+    snprintf(pasv_ip, INET_ADDRSTRLEN, "%d.%d.%d.%d", h1, h2, h3, h4);
+    // (We already had the ip address, so I'm not sure why we should do this again)
+
+    // Calculate the port number
+    *port = (p1 * 256) + p2;
+
+    printf("Parsed PASV response: IP=%s, Port=%d\n", pasv_ip, *port);
+    return 0;
+}
+

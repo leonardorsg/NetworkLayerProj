@@ -22,7 +22,7 @@
 // 4. Receive confirmation from server that socket is connected✅
 // 5. Login on server✅
 // 6. Change working directory on server to the file_path that was passed by input✅
-// 7. Send PASV command to get IP address and port for data socket
+// 7. Send PASV command to get IP address and port for data socket✅
 // 8. Send RETR command to begin file transfer through data socket
 // 9. Download file
 // 10. Disconnect from socket  ✅
@@ -62,35 +62,68 @@ int main(int argc, char **argv) {
     printf("IP: %s\n", ip);
 
     //Creation of socket to connect to server
-    int socketfd = connect_to_server(ip);
-    if (socketfd < 0){
+    int control_socket = connect_to_server(ip);
+    if (control_socket < 0){
         printf("Error connecting to server\n");
         return -1;
     }
 
     char response[MAX_RESPONSE_SIZE];
-    int response_code = read_server_response(socketfd, response, sizeof(response));
+    int response_code = read_server_response(control_socket, response, sizeof(response));
     if (response_code < 0) {
         printf("Failed to establish a proper connection with the server.\n");
-        close(socketfd);
+        close(control_socket);
         return -1;
     } 
 
-    if (login_on_server(socketfd, input.user, input.password) != 0) {
+    if (login_on_server(control_socket, input.user, input.password) != 0) {
         printf("Error logging in to server.\n");
-        close(socketfd);
+        close(control_socket);
         return -1;
     }
 
-    if (send_command(socketfd, "CWD", input.path) != 0) {
+    if (change_working_directory(control_socket, input.path) != 0) {
         printf("Error changing working directory.\n");
-        close(socketfd);
+        close(control_socket);
         return -1;
-    } else 
-        printf("Changed working directory to %s\n", input.path);
-    
+    }
 
-    close(socketfd);
+    char pasv_ip[INET_ADDRSTRLEN];
+    int port;
+
+    if (send_pasv_command(control_socket, pasv_ip, &port) < 0) {
+        printf("Failed to establish data connection.\n");
+        close(control_socket);
+        return -1;
+    }
+
+    printf("Data connection info: IP=%s, Port=%d\n", pasv_ip, port);
+
+    int data_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (data_socket < 0) {
+        perror("socket");
+        return -1;
+    }
+
+    struct sockaddr_in data_addr;
+    data_addr.sin_family = AF_INET;
+    data_addr.sin_port = htons(port);
+    if (inet_pton(AF_INET, ip, &data_addr.sin_addr) <= 0) {
+        perror("inet_pton");
+        return -1;
+    }
+
+    if (connect(data_socket, (struct sockaddr *)&data_addr, sizeof(data_addr)) < 0) {
+        perror("connect");
+        close(data_socket);
+        return -1;
+    }
+
+    printf("Data connection established successfully.\n");
+
+    close(data_socket);
+
+    close(control_socket);
 
     return 0;
 }
