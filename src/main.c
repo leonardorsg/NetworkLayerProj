@@ -144,7 +144,6 @@ int main(int argc, char **argv) {
     } 
 
     close_socket(control_socket);
-    close_socket(data_socket);
     return 0;
 }
 

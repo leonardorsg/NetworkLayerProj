@@ -57,6 +57,37 @@ int send_command(int control_socket, const char *command, const char *argument) 
     return 0;
 }
 
+int interpret_response(int control_socket,int response,const char *command, const char *argument){
+    response = response / 100;
+    while (1) {
+        switch (response) {
+            case 1:
+                // expecting another reply
+                return 1;
+            case 2:
+                // command was successful
+                return 2;
+            case 3:
+                // expecting argument value
+                return 3;
+            case 4:
+                // error in command, sending command again
+                if (send_command(control_socket, command,argument) < 0) {
+                    return -1;
+                } else return 2;
+                break;
+            case 5:
+                // command wasn't accepted
+                printf("> Command wasn\'t accepted... \n");
+                close(control_socket);
+                exit(-1);
+                break;
+            default:
+                break;
+        }
+    }
+}
+
 int login_on_server(int control_socket, const char *username, const char *password) {
     char response[MAX_RESPONSE_SIZE];
 
@@ -70,12 +101,12 @@ int login_on_server(int control_socket, const char *username, const char *passwo
     
     // Check response code
     int code = atoi(response);
-    if (code == 230) {
+
+    int response_interpreted = interpret_response(control_socket, code, "USER", username);
+
+    if(response_interpreted == 2){
         printf("Login successful (no password needed).\n");
         return 0;
-    } else if (code != 331) {
-        printf("Unexpected response after USER: %s\n", response);
-        return -1;
     }
 
     // Send PASS command, 331 means password is required
@@ -88,10 +119,13 @@ int login_on_server(int control_socket, const char *username, const char *passwo
 
     // Check response code
     code = atoi(response);
-    if (code == 230) {
-        printf("Login successful.\n");
+
+    response_interpreted = interpret_response(control_socket, code, "USER", username);
+
+    if(response_interpreted == 2){
+        printf("Login successful \n");
         return 0;
-    } else {
+    }  else {
         printf("Login failed: %s\n", response);
         return -1;
     }
@@ -110,14 +144,20 @@ int change_working_directory(int control_socket, const char *path) {
         close(control_socket);
         return -1;
 
-    } else if (atoi(response) != 250) { 
-        printf("Unexpected response to CWD: %s\n", response);
-        close(control_socket);
-        return -1;
+    }
+    
+    int code = atoi(response);
+
+    int interpreted_response = interpret_response(control_socket, code, "CWD", path);
+    
+    if(interpreted_response == 2){
+        printf("Working directory changed successfully.\n");
+        return 0;
     }
 
-    printf("Working directory changed successfully.\n");
-    return 0;
+    printf("Unexpected response to CWD: %s\n", response);
+        close(control_socket);
+        return -1;
 }
 
 int send_pasv_command(int control_socket, char *pasv_ip, int *port) {
@@ -130,9 +170,14 @@ int send_pasv_command(int control_socket, char *pasv_ip, int *port) {
 
     if (read_server_response(control_socket, response, sizeof(response)) < 0)
         return -1;
+
+    int code = atoi(response);
+
+    int interpreted_response = interpret_response(control_socket, code, "PASV", NULL);
     
-    // 227 is the expected response code for PASV
-    if (strncmp(response, "227", 3) != 0) {
+    if(interpreted_response == 2){
+        printf("PASV command successful.\n");
+    } else {
         printf("Unexpected response to PASV command: %s\n", response);
         return -1;
     }
@@ -173,8 +218,22 @@ int send_retr_command(int control_socket, const char *filename){
         return -1;
     }
 
+    
+
     if (read_server_response(control_socket, response, sizeof(response)) < 0)
         return -1;
+
+    int code = atoi(response);
+
+    int interpreted_response = interpret_response(control_socket, code, "RETR", filename);
+
+    if(interpreted_response == 2 || interpreted_response == 1){
+        printf("RETR command successful.\n");
+    } else {
+        printf("Unexpected response to RETR command: %s\n", response);
+        return -1;
+    }
+        
 
     return 0;
 
@@ -211,7 +270,7 @@ int download_file(int data_socket, const char *filename){
 }
 
 int close_socket(int socket){
-    if (send_command(socket, "QUIT", NULL) != 0) {
+    if (send_command(socket, "quit", NULL) != 0) {
         printf("Failed to send QUIT command.\n");
         return -1;
     }

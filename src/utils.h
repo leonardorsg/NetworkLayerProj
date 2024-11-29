@@ -24,3 +24,4 @@ struct TCP_input {
 int get_input(struct TCP_input *input, char *argv);
 
 int getIP(char *host, char *ip);
+

@@ -24,6 +24,8 @@ int read_server_response(int control_socket, char *buffer, size_t size);
 
 int send_command(int control_socket, const char *command, const char *argument);
 
+int interpret_response(int control_socket,int response,const char *command, const char *argument);
+
 int login_on_server(int control_socket, const char *username, const char *password);
 
 int change_working_directory(int control_socket, const char *path);
