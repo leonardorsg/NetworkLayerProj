@@ -15,6 +15,9 @@ int connect_to_server(char* server_address){
         perror("socket()");
         exit(-1);
     }
+
+    printf("Created control socket.\n");
+
     /*connect to the server*/
     if (connect(control_socket,
                 (struct sockaddr *) &server_addr,
@@ -23,12 +26,16 @@ int connect_to_server(char* server_address){
         exit(-1);
     }    
 
+    printf("Connected to server.\n");
+
     return control_socket;
 }
 
 
 int read_server_response(int control_socket, char *buffer, size_t size) {
+    printf("Reading server response...\n");
     ssize_t bytes_read = read(control_socket, buffer, size - 1);
+    
     if (bytes_read < 0) {
         perror("read()");
         return -1;
@@ -54,10 +61,12 @@ int send_command(int control_socket, const char *command, const char *argument) 
         return -1;
     }
 
+    printf("Sent %s command. \n", command);
+
     return 0;
 }
 
-int interpret_response(int control_socket,int response,const char *command, const char *argument){
+int interpret_response(int control_socket,int response){
     response = response / 100;
     while (1) {
         switch (response) {
@@ -71,19 +80,18 @@ int interpret_response(int control_socket,int response,const char *command, cons
                 // expecting argument value
                 return 3;
             case 4:
-                // error in command, sending command again
-                if (send_command(control_socket, command,argument) < 0) {
-                    return -1;
-                } else return 2;
+                // error in command, need to send command again
+                printf("> Command wasn\'t accepted. Will try again... \n");
                 break;
             case 5:
-                // command wasn't accepted
-                printf("> Command wasn\'t accepted... \n");
+                printf("> Command wasn\'t accepted. Closing connection... \n");
                 close(control_socket);
                 exit(-1);
                 break;
             default:
-                break;
+                printf("> Unexpected response code: %d. Closing connection.\n", response);
+                close(control_socket);
+                return -1;
         }
     }
 }
@@ -91,44 +99,63 @@ int interpret_response(int control_socket,int response,const char *command, cons
 int login_on_server(int control_socket, const char *username, const char *password) {
     char response[MAX_RESPONSE_SIZE];
 
-    // Send USER command
-    if (send_command(control_socket, "USER", username) < 0) 
-        return -1;
+    int tries = 0, max_tries = 3;
 
-    // Read server response
-    if (read_server_response(control_socket, response, sizeof(response)) < 0)
-        return -1;
-    
-    // Check response code
-    int code = atoi(response);
+    while (tries < max_tries) {
+        
+        // Send USER command
+        if (send_command(control_socket, "USER", username) < 0) 
+            return -1;
 
-    int response_interpreted = interpret_response(control_socket, code, "USER", username);
+        // Read server response
+        if (read_server_response(control_socket, response, sizeof(response)) < 0)
+            return -1;
 
-    if(response_interpreted == 2){
-        printf("Login successful (no password needed).\n");
-        return 0;
+        int code = atoi(response);
+
+        int interpreted_response = interpret_response(control_socket, code);
+
+        switch (interpreted_response) {
+            case 2:
+                printf("Login successful (no password needed).\n");
+                return 0;
+            case 3: // Send PASS command, 331 means password is required
+                printf("Password required.\n");
+                
+                if (send_command(control_socket, "PASS", password) < 0) 
+                    return -1;
+
+                if (read_server_response(control_socket, response, sizeof(response)) < 0) 
+                    return -1;
+
+                code = atoi(response);
+                interpreted_response = interpret_response(control_socket, code);
+
+                switch (interpreted_response) {
+                    case 2:
+                        printf("PASS successful.\n");
+                        return 0;
+                    case 4:
+                        tries++;
+                        printf("Error during PASS, retrying USER...\n");
+                        break;
+                    default:
+                        printf("Unexpected response to PASS: %s\n", response);
+                        return -1;
+                }
+                break;
+            case 4:
+                tries++;
+                printf("Error during USER, retrying USER...\n");
+                break;
+            default:
+                printf("Unexpected response to USER: %s\n", response);
+                return -1;
+        }
     }
 
-    // Send PASS command, 331 means password is required
-    if (send_command(control_socket, "PASS", password) < 0) 
-        return -1;
-
-    // Read server response
-    if (read_server_response(control_socket, response, sizeof(response)) < 0) 
-        return -1;
-
-    // Check response code
-    code = atoi(response);
-
-    response_interpreted = interpret_response(control_socket, code, "USER", username);
-
-    if(response_interpreted == 2){
-        printf("Login successful \n");
-        return 0;
-    }  else {
-        printf("Login failed: %s\n", response);
-        return -1;
-    }
+    printf("Failed to login after %d attempts.\n", max_tries);
+    return -1;
 }
 
 int change_working_directory(int control_socket, const char *path) {
@@ -148,99 +175,111 @@ int change_working_directory(int control_socket, const char *path) {
     
     int code = atoi(response);
 
-    int interpreted_response = interpret_response(control_socket, code, "CWD", path);
+    int interpreted_response = interpret_response(control_socket, code);
     
-    if(interpreted_response == 2){
-        printf("Working directory changed successfully.\n");
-        return 0;
+    if(interpreted_response != 2){
+        printf("Unexpected response to CWD: %s\n", response);
+        close(control_socket);
+        return -1;        
     }
 
-    printf("Unexpected response to CWD: %s\n", response);
-        close(control_socket);
-        return -1;
+    printf("Working directory changed successfully.\n");
+    return 0;
 }
 
 int send_pasv_command(int control_socket, char *pasv_ip, int *port) {
     char response[MAX_RESPONSE_SIZE];
+    int tries = 0, max_tries = 3;
 
-    if (send_command(control_socket, "PASV", NULL) != 0) {
-        printf("Failed to send PASV command.\n");
-        return -1;
+    while (tries < max_tries) {
+        if (send_command(control_socket, "PASV", NULL) != 0) 
+            return -1;
+
+        if (read_server_response(control_socket, response, sizeof(response)) < 0) 
+            return -1;
+
+        int code = atoi(response);
+        int interpreted_response = interpret_response(control_socket, code);
+
+        switch (interpreted_response) {
+            case 2:
+                printf("PASV command successful.\n");
+
+                // Parse IP and port from response
+                char *start = strchr(response, '(');
+                char *end = strchr(response, ')');
+                if (start == NULL || end == NULL || start >= end) {
+                    printf("Failed to parse PASV response.\n");
+                    return -1;
+                }
+
+                char pasv_data[MAX_RESPONSE_SIZE];
+                strncpy(pasv_data, start + 1, end - start - 1);
+                pasv_data[end - start - 1] = '\0';
+
+                int h1, h2, h3, h4, p1, p2;
+                if (sscanf(pasv_data, "%d,%d,%d,%d,%d,%d", &h1, &h2, &h3, &h4, &p1, &p2) != 6) {
+                    printf("Failed to extract PASV data.\n");
+                    return -1;
+                }
+
+                // Build IP address
+                snprintf(pasv_ip, INET_ADDRSTRLEN, "%d.%d.%d.%d", h1, h2, h3, h4);
+
+                // Calculate port
+                *port = (p1 * 256) + p2;
+
+                printf("Parsed PASV response: IP=%s, Port=%d\n", pasv_ip, *port);
+                return 0;
+            case 4:
+                tries++;
+                printf("Error on PASV, retrying (%d/%d)...\n", tries, max_tries);
+                break;
+            default:
+                printf("Unexpected response to PASV: %s\n", response);
+                return -1;
+        } 
     }
 
-    if (read_server_response(control_socket, response, sizeof(response)) < 0)
-        return -1;
-
-    int code = atoi(response);
-
-    int interpreted_response = interpret_response(control_socket, code, "PASV", NULL);
-    
-    if(interpreted_response == 2){
-        printf("PASV command successful.\n");
-    } else {
-        printf("Unexpected response to PASV command: %s\n", response);
-        return -1;
-    }
-
-    // Parse the IP and port from the response
-    char *start = strchr(response, '(');
-    char *end = strchr(response, ')');
-    if (start == NULL || end == NULL || start >= end) {
-        printf("Failed to parse PASV response.\n");
-        return -1;
-    }
-
-    char pasv_data[MAX_RESPONSE_SIZE];
-    strncpy(pasv_data, start + 1, end - start - 1);
-    pasv_data[end - start - 1] = '\0';
-
-    int h1, h2, h3, h4, p1, p2;
-    if (sscanf(pasv_data, "%d,%d,%d,%d,%d,%d", &h1, &h2, &h3, &h4, &p1, &p2) != 6) {
-        printf("Failed to extract PASV data.\n");
-        return -1;
-    }
-
-    // Build the IP address
-    snprintf(pasv_ip, INET_ADDRSTRLEN, "%d.%d.%d.%d", h1, h2, h3, h4);
-    // (We already had the ip address, so I'm not sure why we should do this again)
-
-    // Calculate the port number
-    *port = (p1 * 256) + p2;
-
-    printf("Parsed PASV response: IP=%s, Port=%d\n", pasv_ip, *port);
-    return 0;
+    printf("Failed to complete PASV command after %d attempts.\n", max_tries);
+    return -1;
 }
 
 int send_retr_command(int control_socket, const char *filename){
     char response[MAX_SIZE];
-    if (send_command(control_socket, "RETR", filename) != 0) {
-        printf("Failed to send RETR command.\n");
-        return -1;
+    int tries = 0, max_tries = 3;
+
+    while (tries < max_tries) {
+        if (send_command(control_socket, "RETR", filename) != 0)
+            return -1;
+
+        if (read_server_response(control_socket, response, sizeof(response)) < 0)
+            return -1;
+
+        int code = atoi(response);
+        int interpreted_response = interpret_response(control_socket, code);
+
+        if (interpreted_response == 2 || interpreted_response == 1){
+            printf("RETR command successful.\n");
+            return 0;
+        } else if (interpreted_response == 4) {
+            tries++;
+            printf("Retrying RETR command...\n");
+        } else {
+            printf("Unexpected response to RETR command: %s\n", response);
+            return -1;
+        }  
+
     }
 
-    
-
-    if (read_server_response(control_socket, response, sizeof(response)) < 0)
-        return -1;
-
-    int code = atoi(response);
-
-    int interpreted_response = interpret_response(control_socket, code, "RETR", filename);
-
-    if(interpreted_response == 2 || interpreted_response == 1){
-        printf("RETR command successful.\n");
-    } else {
-        printf("Unexpected response to RETR command: %s\n", response);
-        return -1;
-    }
-        
-
-    return 0;
-
+    printf("Failed to send RETR command after %d attempts.\n", max_tries);
+    return -1;
 }
 
 int download_file(int data_socket, const char *filename){
+    printf("Downloading file...\n");
     FILE *file = fopen(filename, "w");
+
     if (file == NULL) {
         perror("fopen()");
         return -1;
@@ -249,18 +288,22 @@ int download_file(int data_socket, const char *filename){
     char buffer[MAX_SIZE];
     int bytes_read;
     while ((bytes_read = read(data_socket,buffer, sizeof(buffer))) > 0) {
-        if ((bytes_read = fwrite(buffer, 1, bytes_read, file)) < 0) {
+        if ((fwrite(buffer, 1, bytes_read, file)) != (size_t)bytes_read) {
             perror("fwrite()");
+            fclose(file);
             return -1;
         }
+        // printf("Wrote %d bytes.\n", bytes_read);
     }
 
     if (bytes_read < 0) {
         perror("read()");
+        fclose(file);
         return -1;
     }
 
     printf("File downloaded successfully.\n");
+
     if(fclose(file) != 0){
         perror("fclose()");
         return -1;

@@ -54,12 +54,10 @@ int main(int argc, char **argv) {
     printf("Filename: %s\n", input.filename);
 
     char ip[MAX_SIZE];
-    if(getIP(input.host, ip) != 0){
+    if (getIP(input.host, ip) != 0){
         printf("Error getting IP\n");
         return -1;
     }
-
-    printf("IP: %s\n", ip);
 
     //Creation of socket to connect to server
     int control_socket = connect_to_server(ip);
@@ -96,37 +94,39 @@ int main(int argc, char **argv) {
         close(control_socket);
         return -1;
     }
-
-    printf("Data connection info: IP=%s, Port=%d\n", pasv_ip, port);
-
-
-    if(send_retr_command(control_socket, input.filename) < 0){
-        printf("Failed to send RETR command.\n");
-        close(control_socket);
-        return -1;
-    }
-
+    
     int data_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (data_socket < 0) {
         perror("socket");
+        close_socket(control_socket);
         return -1;
     }
 
     struct sockaddr_in data_addr;
     data_addr.sin_family = AF_INET;
     data_addr.sin_port = htons(port);
-    if (inet_pton(AF_INET, ip, &data_addr.sin_addr) <= 0) {
+    if (inet_pton(AF_INET, pasv_ip, &data_addr.sin_addr) <= 0) {
         perror("inet_pton");
+        close(data_socket);
+        close(control_socket);
         return -1;
     }
 
     if (connect(data_socket, (struct sockaddr *)&data_addr, sizeof(data_addr)) < 0) {
         perror("connect");
         close(data_socket);
+        close(control_socket);
         return -1;
     }
 
     printf("Data connection established successfully.\n");
+
+    if (send_retr_command(control_socket, input.filename) < 0){
+        printf("Failed to send RETR command.\n");
+        close(data_socket);
+        close(control_socket);
+        return -1;
+    }
 
     if (download_file(data_socket, input.filename) < 0) {
         printf("Failed to download file.\n");
@@ -139,10 +139,14 @@ int main(int argc, char **argv) {
     int response_code_download = read_server_response(control_socket, response_download, sizeof(response_download));
     if (response_code_download < 0) {
         printf("Failed to download.\n");
+        close(data_socket);
         close(control_socket);
         return -1;
     } 
 
+    printf("Downloaded successfully.\n");
+
+    close_socket(data_socket);
     close_socket(control_socket);
     return 0;
 }
