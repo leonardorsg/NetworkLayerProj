@@ -105,7 +105,7 @@ int login_on_server(int control_socket, const char *username, const char *passwo
     int response_interpreted = interpret_response(control_socket, code, "USER", username);
 
     if(response_interpreted == 2){
-        printf("Login successful (no password needed).\n");
+        printf("Login successful (no password needed), %s.\n", response);
         return 0;
     }
 
@@ -123,7 +123,7 @@ int login_on_server(int control_socket, const char *username, const char *passwo
     response_interpreted = interpret_response(control_socket, code, "USER", username);
 
     if(response_interpreted == 2){
-        printf("Login successful \n");
+        printf("Login successful %s\n", response);
         return 0;
     }  else {
         printf("Login failed: %s\n", response);
@@ -212,14 +212,13 @@ int send_pasv_command(int control_socket, char *pasv_ip, int *port) {
 }
 
 int send_retr_command(int control_socket, const char *filename){
+    
     char response[MAX_SIZE];
     if (send_command(control_socket, "RETR", filename) != 0) {
         printf("Failed to send RETR command.\n");
         return -1;
     }
-
-    
-
+    return 0;
     if (read_server_response(control_socket, response, sizeof(response)) < 0)
         return -1;
 
