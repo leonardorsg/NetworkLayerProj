@@ -25,7 +25,23 @@
 // 7. Send PASV command to get IP address and port for data socket✅
 // 8. Send RETR command to begin file transfer through data socket✅
 // 9. Download file✅
-// 10. Disconnect from socket  
+// 10. Disconnect from socket  ✅
+
+/*
+PUBLICOS:
+build/download ftp://ftp.up.pt/pub/gnu/emacs/elisp-manual-21-2.8.tar.gz
+build/download ftp://demo:password@test.rebex.net/readme.txt
+build/download ftp://anonymous:anonymous@ftp.bit.nl/speedtest/100mb.bin
+
+FEUP:
+build/download ftp://rcom:rcom@ftp.netlab.fe.up.pt/README
+build/download ftp://rcom:rcom@ftp.netlab.fe.up.pt/pipe.txt
+build/download ftp://rcom:rcom@ftp.netlab.fe.up.pt/files/crab.mp4 
+
+/debian/ls-lR.gz (about 15 MB)
+/pub/parrot/iso/testing/Parrot-architect-5.3_amd64.iso
+
+*/
 
 // nslookup netlab1.fe.up.pt
 // Server:         10.255.255.254
@@ -80,11 +96,13 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    if (change_working_directory(control_socket, input.path) != 0) {
-        printf("Error changing working directory.\n");
-        close(control_socket);
-        return -1;
-    }
+    if (input.path != NULL && strlen(input.path) != 0) {
+        if (change_working_directory(control_socket, input.path) != 0) {
+            printf("Error changing working directory.\n");
+            close(control_socket);
+            return -1;
+        }
+    } 
 
     char pasv_ip[INET_ADDRSTRLEN];
     int port;
@@ -121,6 +139,11 @@ int main(int argc, char **argv) {
 
     printf("Data connection established successfully.\n");
 
+    // TODO: may need to uncomment lines 144, 145, 147 and 155
+    // char full_path[MAX_SIZE];
+    // snprintf(full_path, sizeof(full_path), "%s/%s", input.path, input.filename);    
+
+    // if (send_retr_command(control_socket, full_path) < 0){
     if (send_retr_command(control_socket, input.filename) < 0){
         printf("Failed to send RETR command.\n");
         close(data_socket);
@@ -128,9 +151,16 @@ int main(int argc, char **argv) {
         return -1;
     }
 
+    // if (download_file(data_socket, full_path) < 0) {
     if (download_file(data_socket, input.filename) < 0) {
         printf("Failed to download file.\n");
         close(data_socket);
+        close(control_socket);
+        return -1;
+    }
+    
+    if (close(data_socket) < 0) {
+        perror("Failed to close data socket.");
         close(control_socket);
         return -1;
     }
@@ -139,14 +169,12 @@ int main(int argc, char **argv) {
     int response_code_download = read_server_response(control_socket, response_download, sizeof(response_download));
     if (response_code_download < 0) {
         printf("Failed to download.\n");
-        close(data_socket);
         close(control_socket);
         return -1;
     } 
 
     printf("Downloaded successfully.\n");
 
-    close_socket(data_socket);
     close_socket(control_socket);
     return 0;
 }

@@ -34,6 +34,7 @@ int main(int argc, char **argv) {
         perror("socket()");
         exit(-1);
     }
+    
     /*connect to the server*/
     if (connect(sockfd,
                 (struct sockaddr *) &server_addr,

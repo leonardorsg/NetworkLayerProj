@@ -17,7 +17,6 @@
 #define RESPONSE_BUFFER_SIZE 1024
 #define MAX_RESPONSE_SIZE 1024
 
-
 int connect_to_server(char* server_address);
 
 int read_server_response(int control_socket, char *buffer, size_t size);

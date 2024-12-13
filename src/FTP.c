@@ -34,6 +34,7 @@ int connect_to_server(char* server_address){
 
 int read_server_response(int control_socket, char *buffer, size_t size) {
     printf("Reading server response...\n");
+    sleep(2);
     ssize_t bytes_read = read(control_socket, buffer, size - 1);
     
     if (bytes_read < 0) {
@@ -46,7 +47,6 @@ int read_server_response(int control_socket, char *buffer, size_t size) {
 
     return atoi(buffer); 
 }
-
 
 int send_command(int control_socket, const char *command, const char *argument) {
     char buffer[MAX_RESPONSE_SIZE];
@@ -159,6 +159,10 @@ int login_on_server(int control_socket, const char *username, const char *passwo
 }
 
 int change_working_directory(int control_socket, const char *path) {
+
+    // print path 
+    printf("Changing working directory to %s\n", path);
+
     if (send_command(control_socket, "CWD", path) != 0) {
         printf("Error sending CWD command.\n");
         close(control_socket);
@@ -279,36 +283,48 @@ int send_retr_command(int control_socket, const char *filename){
 
 int download_file(int data_socket, const char *filename){
     printf("Downloading file...\n");
-    FILE *file = fopen(filename, "w");
+
+    // Open file in downloads directory
+    char file_path[MAX_SIZE];
+    snprintf(file_path, sizeof(file_path), "downloads/%s", filename);
+    FILE *file = fopen(file_path, "w");
+
+    // FILE *file = fopen(filename, "w");
 
     if (file == NULL) {
         perror("fopen()");
         return -1;
     }
 
+    printf("Opened file %s for writing.\n", file_path);
+
     char buffer[MAX_SIZE];
-    int bytes_read;
+    int bytes_read, total_bytes = 0;
     while ((bytes_read = read(data_socket,buffer, sizeof(buffer))) > 0) {
         if ((fwrite(buffer, 1, bytes_read, file)) != (size_t)bytes_read) {
             perror("fwrite()");
             fclose(file);
             return -1;
         }
+        total_bytes += bytes_read;
+        if (total_bytes % 100000 == 0)
+            printf("Downloaded %d bytes.\n", total_bytes);
         // printf("Wrote %d bytes.\n", bytes_read);
     }
 
-    if (bytes_read < 0) {
-        perror("read()");
-        fclose(file);
-        return -1;
-    }
-
-    printf("File downloaded successfully.\n");
+    printf("Downloaded total of %d bytes  (%.2f MB).\n", total_bytes, (float)total_bytes / 1000000);
 
     if(fclose(file) != 0){
         perror("fclose()");
         return -1;
     }
+        
+    if (bytes_read < 0) {
+        perror("read()");
+        return -1;
+    }
+
+    printf("File downloaded successfully.\n");
 
     return 0;
 }
@@ -324,7 +340,7 @@ int close_socket(int socket){
     //Succesfull goodbye response is 221
     if (read_server_response(socket, response, sizeof(response)) != 221)
         return -1;
-    return close(socket);
 
+    return close(socket);
 }
 
