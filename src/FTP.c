@@ -286,7 +286,7 @@ int download_file(int data_socket, const char *filename){
 
     // Open file in downloads directory
     char file_path[MAX_SIZE];
-    snprintf(file_path, sizeof(file_path), "downloads/%s", filename);
+    snprintf(file_path, sizeof(file_path), "../downloads/%s", filename);
     FILE *file = fopen(file_path, "w");
 
     // FILE *file = fopen(filename, "w");
