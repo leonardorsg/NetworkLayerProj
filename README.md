@@ -67,7 +67,7 @@ This file contains the main implementation of the FTP client. Below are the key 
    ```bash
    make
    ```
-3. The executable will be located in the `build` directory as `download`.
+3. The executable will be located in the `build` directory as `download`. Make sure to be in build directory when running ./download command.
 
 ## How to Run
 

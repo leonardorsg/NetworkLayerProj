@@ -1,6 +1,6 @@
 #include "utils.h"
 
-int get_input(struct TCP_input *input, char *argv){
+int get_input(struct TCP_input *input, char *argv) {
     
     char *cursor = argv;
 
